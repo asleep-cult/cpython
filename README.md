@@ -18,19 +18,16 @@ is patenthesized.
 {'x': <class 'int'>, 'y': <class 'int'>, 'return': <class 'int'>}
 ```
 
-### How do you use them?
+### How do you use function prototypes?
 ```py
    >>> async def x(a: int, c: str = 0, /, d: dict = {}, e: list = [], *, f: set, g: 10 = 10) -> None
    ...
    >>> x.__async__
    True
-   >>>
    >>> x.__defaults__
    (0, {}, [])
-   >>>
    >>> x.__kwdefaults__
    {'g': 10}
-   >>>
    >>> x.__annotations__
    {'d': <class 'dict'>,
     'e': <class 'list'>,
@@ -39,19 +36,14 @@ is patenthesized.
     'f': <class 'set'>,
     'g': 10,
     'return': None}
-   >>>
    >>> x.__posonlyargnames__
    ('a', 'c')
-   >>>
    >>> x.__argnames__
    ('d', 'e')
-   >>>
    >>> x.__kwonlyargnames__
    ('f', 'g')
-   >>>
    >>> x.__qualname__
    '<module>.x'
-   >>>
    >>> x.__name__
    'x'
 ```
@@ -59,35 +51,26 @@ is patenthesized.
 Alternatively, you can use an lambda prototype.
 ```py
 >>> x = lambda (a: int, c: str = 0, /, d: dict = {}, *, e: set = set()) -> list
->>>
 >>> x.__async__
 False
->>>
 >>> x.__defaults__
 (0, {})
->>>
 >>> x.__kwdefaults__
 {'e': set()}
->>>
 >>> x.__annotations__
 {'d': <class 'dict'>,
  'a': <class 'int'>,
  'c': <class 'str'>,
  'e': <class 'set'>,
  'return': <class 'list'>}
->>>
 >>> x.__posonlyargnames__
 ('a', 'c')
->>>
 >>> x.__argnames__
 ('d',)
->>>
 >>> x.__kwonlyargnames__
 ('e',)
->>>
 >>> x.__qualname__
 '<module>.<lambda>'
->>>
 >>> x.__name__
 '<lambda>'
 ```
