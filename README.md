@@ -7,7 +7,7 @@ data, but not their implementation. They are essentially functions with no body.
 
 ### How do you use them?
 ```py
-   >>> async def x(a: int, c: str = 0, /, e: list = [], *, f: set, g: 10 = 10) -> None
+   >>> async def x(a: int, c: str = 0, /, d: dict = {}, e: list = [], *, f: set, g: 10 = 10) -> None
    ...
    >>> x.__async__
    True
