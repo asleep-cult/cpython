@@ -1003,7 +1003,7 @@ PyFunctionPrototype_SetDefaults(PyObject *op, PyObject *defaults)
     }
     else {
         PyErr_SetString(PyExc_SystemError,
-                        "non-tuple kwonlyargnames");
+                        "non-tuple defaults");
     }
     Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_defaults, defaults);
     return 0;
@@ -1033,7 +1033,7 @@ PyFunctionPrototype_SetKwDefaults(PyObject *op, PyObject *defaults)
     }
     else {
         PyErr_SetString(PyExc_SystemError,
-                        "non-tuple kwonlyargnames");
+                        "non-dict kwdefaults");
     }
     Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_kwdefaults, defaults);
     return 0;
