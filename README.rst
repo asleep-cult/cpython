@@ -1,3 +1,50 @@
+This is an experimental fork of cpython with function prototypes
+================================================================
+
+Function prototypes allow you do define a function's arguments
+and annotations without givint it an implementation.
+
+Example
+-------
+.. code-block:: python
+   >>> async def x(a: int, c: str = 0, /, d: dict = {}, e: list = [], *, f: set, g: 10 = 10) -> None
+   ...
+   >>> x.__async__
+   True
+   >>> x.__defaults__
+   (0, {}, [])
+   >>> x.__kwdefaults__
+   {'g': 10}
+   >>> x.__annotations__
+   {'d': <class 'dict'>, 'e': <class 'list'>, 'a': <class 'int'>, 'c': <class 'str'>, 'f': <class 'set'>, 'g': 10, 'return': None}
+   >>> x.__posonlyargnames__
+   ('a', 'c')
+   >>> x.__argnames__
+   ('d', 'e')
+   >>> x.__kwonlyargnames__
+   ('f', 'g')
+   >>> x.__qualname__
+   '<module>.x'
+   >>> x.__name__
+   'x'
+   
+Decorators
+----------
+
+Just like functions, function prototypes allow you to use decorators.
+
+.. code-block:: python
+   >>> def decorate(prototype):
+   ...     print(f'A really cool prototype: {prototype}')
+   ...     return ';)'
+   ...
+   >>> @decorate
+   ... def i_am_not_a_string()
+   ...
+   A really cool prototype: <function-prototype <module>.i_am_not_a_string at 0x00000211AECC14F0>
+   >>> i_am_not_a_string
+   ';)'
+
 This is Python version 3.11.0 alpha 3
 =====================================
 
