@@ -689,6 +689,25 @@ validate_stmt(struct validator *state, stmt_ty stmt)
             (!stmt->v.FunctionDef.returns ||
              validate_expr(state, stmt->v.FunctionDef.returns, Load));
         break;
+    case AsyncFunctionDef_kind:
+        ret = validate_body(state, stmt->v.AsyncFunctionDef.body, "AsyncFunctionDef") &&
+            validate_arguments(state, stmt->v.AsyncFunctionDef.args) &&
+            validate_exprs(state, stmt->v.AsyncFunctionDef.decorator_list, Load, 0) &&
+            (!stmt->v.AsyncFunctionDef.returns ||
+                validate_expr(state, stmt->v.AsyncFunctionDef.returns, Load));
+        break;
+    case FunctionProto_kind:
+        ret = validate_arguments(state, stmt->v.FunctionProto.args) &&
+            validate_exprs(state, stmt->v.FunctionProto.decorator_list, Load, 0) &&
+            (!stmt->v.FunctionProto.returns ||
+                validate_expr(state, stmt->v.FunctionProto.returns, Load));
+        break;
+    case AsyncFunctionProto_kind:
+        ret = validate_arguments(state, stmt->v.AsyncFunctionProto.args) &&
+            validate_exprs(state, stmt->v.AsyncFunctionProto.decorator_list, Load, 0) &&
+            (!stmt->v.AsyncFunctionProto.returns ||
+                validate_expr(state, stmt->v.AsyncFunctionProto.returns, Load));
+        break;
     case ClassDef_kind:
         ret = validate_body(state, stmt->v.ClassDef.body, "ClassDef") &&
             validate_exprs(state, stmt->v.ClassDef.bases, Load, 0) &&
@@ -864,13 +883,6 @@ validate_stmt(struct validator *state, stmt_ty stmt)
         break;
     case Expr_kind:
         ret = validate_expr(state, stmt->v.Expr.value, Load);
-        break;
-    case AsyncFunctionDef_kind:
-        ret = validate_body(state, stmt->v.AsyncFunctionDef.body, "AsyncFunctionDef") &&
-            validate_arguments(state, stmt->v.AsyncFunctionDef.args) &&
-            validate_exprs(state, stmt->v.AsyncFunctionDef.decorator_list, Load, 0) &&
-            (!stmt->v.AsyncFunctionDef.returns ||
-             validate_expr(state, stmt->v.AsyncFunctionDef.returns, Load));
         break;
     case Pass_kind:
     case Break_kind:

@@ -36,6 +36,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->Assign_type);
     Py_CLEAR(state->AsyncFor_type);
     Py_CLEAR(state->AsyncFunctionDef_type);
+    Py_CLEAR(state->AsyncFunctionProto_type);
     Py_CLEAR(state->AsyncWith_type);
     Py_CLEAR(state->Attribute_type);
     Py_CLEAR(state->AugAssign_type);
@@ -71,6 +72,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->For_type);
     Py_CLEAR(state->FormattedValue_type);
     Py_CLEAR(state->FunctionDef_type);
+    Py_CLEAR(state->FunctionProto_type);
     Py_CLEAR(state->FunctionType_type);
     Py_CLEAR(state->GeneratorExp_type);
     Py_CLEAR(state->Global_type);
@@ -406,6 +408,20 @@ static const char * const AsyncFunctionDef_fields[]={
     "name",
     "args",
     "body",
+    "decorator_list",
+    "returns",
+    "type_comment",
+};
+static const char * const FunctionProto_fields[]={
+    "name",
+    "args",
+    "decorator_list",
+    "returns",
+    "type_comment",
+};
+static const char * const AsyncFunctionProto_fields[]={
+    "name",
+    "args",
     "decorator_list",
     "returns",
     "type_comment",
@@ -1131,6 +1147,8 @@ init_types(struct ast_state *state)
     state->stmt_type = make_type(state, "stmt", state->AST_type, NULL, 0,
         "stmt = FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns, string? type_comment)\n"
         "     | AsyncFunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns, string? type_comment)\n"
+        "     | FunctionProto(identifier name, arguments args, expr* decorator_list, expr? returns, string? type_comment)\n"
+        "     | AsyncFunctionProto(identifier name, arguments args, expr* decorator_list, expr? returns, string? type_comment)\n"
         "     | ClassDef(identifier name, expr* bases, keyword* keywords, stmt* body, expr* decorator_list)\n"
         "     | Return(expr? value)\n"
         "     | Delete(expr* targets)\n"
@@ -1182,6 +1200,28 @@ init_types(struct ast_state *state)
         == -1)
         return 0;
     if (PyObject_SetAttr(state->AsyncFunctionDef_type, state->type_comment,
+        Py_None) == -1)
+        return 0;
+    state->FunctionProto_type = make_type(state, "FunctionProto",
+                                          state->stmt_type,
+                                          FunctionProto_fields, 5,
+        "FunctionProto(identifier name, arguments args, expr* decorator_list, expr? returns, string? type_comment)");
+    if (!state->FunctionProto_type) return 0;
+    if (PyObject_SetAttr(state->FunctionProto_type, state->returns, Py_None) ==
+        -1)
+        return 0;
+    if (PyObject_SetAttr(state->FunctionProto_type, state->type_comment,
+        Py_None) == -1)
+        return 0;
+    state->AsyncFunctionProto_type = make_type(state, "AsyncFunctionProto",
+                                               state->stmt_type,
+                                               AsyncFunctionProto_fields, 5,
+        "AsyncFunctionProto(identifier name, arguments args, expr* decorator_list, expr? returns, string? type_comment)");
+    if (!state->AsyncFunctionProto_type) return 0;
+    if (PyObject_SetAttr(state->AsyncFunctionProto_type, state->returns,
+        Py_None) == -1)
+        return 0;
+    if (PyObject_SetAttr(state->AsyncFunctionProto_type, state->type_comment,
         Py_None) == -1)
         return 0;
     state->ClassDef_type = make_type(state, "ClassDef", state->stmt_type,
@@ -2016,6 +2056,72 @@ _PyAST_AsyncFunctionDef(identifier name, arguments_ty args, asdl_stmt_seq *
     p->v.AsyncFunctionDef.decorator_list = decorator_list;
     p->v.AsyncFunctionDef.returns = returns;
     p->v.AsyncFunctionDef.type_comment = type_comment;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+stmt_ty
+_PyAST_FunctionProto(identifier name, arguments_ty args, asdl_expr_seq *
+                     decorator_list, expr_ty returns, string type_comment, int
+                     lineno, int col_offset, int end_lineno, int
+                     end_col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!name) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'name' is required for FunctionProto");
+        return NULL;
+    }
+    if (!args) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'args' is required for FunctionProto");
+        return NULL;
+    }
+    p = (stmt_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = FunctionProto_kind;
+    p->v.FunctionProto.name = name;
+    p->v.FunctionProto.args = args;
+    p->v.FunctionProto.decorator_list = decorator_list;
+    p->v.FunctionProto.returns = returns;
+    p->v.FunctionProto.type_comment = type_comment;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+stmt_ty
+_PyAST_AsyncFunctionProto(identifier name, arguments_ty args, asdl_expr_seq *
+                          decorator_list, expr_ty returns, string type_comment,
+                          int lineno, int col_offset, int end_lineno, int
+                          end_col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!name) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'name' is required for AsyncFunctionProto");
+        return NULL;
+    }
+    if (!args) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'args' is required for AsyncFunctionProto");
+        return NULL;
+    }
+    p = (stmt_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = AsyncFunctionProto_kind;
+    p->v.AsyncFunctionProto.name = name;
+    p->v.AsyncFunctionProto.args = args;
+    p->v.AsyncFunctionProto.decorator_list = decorator_list;
+    p->v.AsyncFunctionProto.returns = returns;
+    p->v.AsyncFunctionProto.type_comment = type_comment;
     p->lineno = lineno;
     p->col_offset = col_offset;
     p->end_lineno = end_lineno;
@@ -3754,6 +3860,70 @@ ast2obj_stmt(struct ast_state *state, void* _o)
             goto failed;
         Py_DECREF(value);
         value = ast2obj_string(state, o->v.AsyncFunctionDef.type_comment);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->type_comment, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case FunctionProto_kind:
+        tp = (PyTypeObject *)state->FunctionProto_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_identifier(state, o->v.FunctionProto.name);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->name, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_arguments(state, o->v.FunctionProto.args);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->args, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_list(state,
+                             (asdl_seq*)o->v.FunctionProto.decorator_list,
+                             ast2obj_expr);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->decorator_list, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.FunctionProto.returns);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->returns, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_string(state, o->v.FunctionProto.type_comment);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->type_comment, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case AsyncFunctionProto_kind:
+        tp = (PyTypeObject *)state->AsyncFunctionProto_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_identifier(state, o->v.AsyncFunctionProto.name);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->name, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_arguments(state, o->v.AsyncFunctionProto.args);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->args, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_list(state,
+                             (asdl_seq*)o->v.AsyncFunctionProto.decorator_list,
+                             ast2obj_expr);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->decorator_list, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.AsyncFunctionProto.returns);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->returns, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_string(state, o->v.AsyncFunctionProto.type_comment);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->type_comment, value) == -1)
             goto failed;
@@ -6048,6 +6218,252 @@ obj2ast_stmt(struct ast_state *state, PyObject* obj, stmt_ty* out, PyArena*
                                        returns, type_comment, lineno,
                                        col_offset, end_lineno, end_col_offset,
                                        arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    tp = state->FunctionProto_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        identifier name;
+        arguments_ty args;
+        asdl_expr_seq* decorator_list;
+        expr_ty returns;
+        string type_comment;
+
+        if (_PyObject_LookupAttr(obj, state->name, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"name\" missing from FunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'FunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_identifier(state, tmp, &name, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->args, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"args\" missing from FunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'FunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_arguments(state, tmp, &args, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->decorator_list, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"decorator_list\" missing from FunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            Py_ssize_t len;
+            Py_ssize_t i;
+            if (!PyList_Check(tmp)) {
+                PyErr_Format(PyExc_TypeError, "FunctionProto field \"decorator_list\" must be a list, not a %.200s", _PyType_Name(Py_TYPE(tmp)));
+                goto failed;
+            }
+            len = PyList_GET_SIZE(tmp);
+            decorator_list = _Py_asdl_expr_seq_new(len, arena);
+            if (decorator_list == NULL) goto failed;
+            for (i = 0; i < len; i++) {
+                expr_ty val;
+                PyObject *tmp2 = PyList_GET_ITEM(tmp, i);
+                Py_INCREF(tmp2);
+                if (Py_EnterRecursiveCall(" while traversing 'FunctionProto' node")) {
+                    goto failed;
+                }
+                res = obj2ast_expr(state, tmp2, &val, arena);
+                Py_LeaveRecursiveCall();
+                Py_DECREF(tmp2);
+                if (res != 0) goto failed;
+                if (len != PyList_GET_SIZE(tmp)) {
+                    PyErr_SetString(PyExc_RuntimeError, "FunctionProto field \"decorator_list\" changed size during iteration");
+                    goto failed;
+                }
+                asdl_seq_SET(decorator_list, i, val);
+            }
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->returns, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            returns = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'FunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &returns, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->type_comment, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            type_comment = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'FunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_string(state, tmp, &type_comment, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_FunctionProto(name, args, decorator_list, returns,
+                                    type_comment, lineno, col_offset,
+                                    end_lineno, end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    tp = state->AsyncFunctionProto_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        identifier name;
+        arguments_ty args;
+        asdl_expr_seq* decorator_list;
+        expr_ty returns;
+        string type_comment;
+
+        if (_PyObject_LookupAttr(obj, state->name, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"name\" missing from AsyncFunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'AsyncFunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_identifier(state, tmp, &name, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->args, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"args\" missing from AsyncFunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'AsyncFunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_arguments(state, tmp, &args, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->decorator_list, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"decorator_list\" missing from AsyncFunctionProto");
+            return 1;
+        }
+        else {
+            int res;
+            Py_ssize_t len;
+            Py_ssize_t i;
+            if (!PyList_Check(tmp)) {
+                PyErr_Format(PyExc_TypeError, "AsyncFunctionProto field \"decorator_list\" must be a list, not a %.200s", _PyType_Name(Py_TYPE(tmp)));
+                goto failed;
+            }
+            len = PyList_GET_SIZE(tmp);
+            decorator_list = _Py_asdl_expr_seq_new(len, arena);
+            if (decorator_list == NULL) goto failed;
+            for (i = 0; i < len; i++) {
+                expr_ty val;
+                PyObject *tmp2 = PyList_GET_ITEM(tmp, i);
+                Py_INCREF(tmp2);
+                if (Py_EnterRecursiveCall(" while traversing 'AsyncFunctionProto' node")) {
+                    goto failed;
+                }
+                res = obj2ast_expr(state, tmp2, &val, arena);
+                Py_LeaveRecursiveCall();
+                Py_DECREF(tmp2);
+                if (res != 0) goto failed;
+                if (len != PyList_GET_SIZE(tmp)) {
+                    PyErr_SetString(PyExc_RuntimeError, "AsyncFunctionProto field \"decorator_list\" changed size during iteration");
+                    goto failed;
+                }
+                asdl_seq_SET(decorator_list, i, val);
+            }
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->returns, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            returns = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'AsyncFunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &returns, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->type_comment, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            type_comment = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'AsyncFunctionProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_string(state, tmp, &type_comment, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_AsyncFunctionProto(name, args, decorator_list, returns,
+                                         type_comment, lineno, col_offset,
+                                         end_lineno, end_col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -11866,6 +12282,14 @@ astmodule_exec(PyObject *m)
     }
     if (PyModule_AddObjectRef(m, "AsyncFunctionDef",
         state->AsyncFunctionDef_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "FunctionProto", state->FunctionProto_type) <
+        0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "AsyncFunctionProto",
+        state->AsyncFunctionProto_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "ClassDef", state->ClassDef_type) < 0) {

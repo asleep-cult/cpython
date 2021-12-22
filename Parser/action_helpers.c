@@ -783,6 +783,28 @@ _PyPegen_function_def_decorators(Parser *p, asdl_expr_seq *decorators, stmt_ty f
         function_def->end_col_offset, p->arena);
 }
 
+/* Construct a FunctionProto equivalent to function_def, but with decorators */
+stmt_ty
+_PyPegen_function_proto_decorators(Parser *p, asdl_expr_seq *decorators, stmt_ty function_proto)
+{
+    assert(function_proto != NULL);
+    if (function_proto->kind == AsyncFunctionProto_kind) {
+        return _PyAST_AsyncFunctionProto(
+            function_proto->v.FunctionProto.name, function_proto->v.FunctionProto.args,
+            decorators, function_proto->v.FunctionProto.returns,
+            function_proto->v.FunctionProto.type_comment, function_proto->lineno,
+            function_proto->col_offset, function_proto->end_lineno, function_proto->end_col_offset,
+            p->arena);
+    }
+
+    return _PyAST_FunctionProto(
+        function_proto->v.FunctionProto.name, function_proto->v.FunctionProto.args,
+        decorators, function_proto->v.FunctionProto.returns,
+        function_proto->v.FunctionProto.type_comment, function_proto->lineno,
+        function_proto->col_offset, function_proto->end_lineno,
+        function_proto->end_col_offset, p->arena);
+}
+
 /* Construct a ClassDef equivalent to class_def, but with decorators */
 stmt_ty
 _PyPegen_class_def_decorators(Parser *p, asdl_expr_seq *decorators, stmt_ty class_def)

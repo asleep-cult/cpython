@@ -840,6 +840,67 @@ compiler_set_qualname(struct compiler *c)
     return 1;
 }
 
+static PyObject *
+compiler_concat_qualname(struct compiler *c, PyObject *name)
+{
+    _Py_static_string(dot, ".");
+    _Py_static_string(dot_locals, ".<locals>");
+
+    PyObject *qualname = NULL;
+
+    int force_global = 0;
+    PyObject *mangled = _Py_Mangle(c->u->u_private, name);
+    if (!mangled) {
+        return NULL;
+    }
+    int scope = _PyST_GetScope(c->u->u_ste, mangled);
+    Py_DECREF(mangled);
+    assert(scope != GLOBAL_IMPLICIT);
+    if (scope == GLOBAL_EXPLICIT) {
+        force_global = 1;
+    }
+
+    if (!force_global) {
+        if (c->u->u_scope_type == COMPILER_SCOPE_FUNCTION
+            || c->u->u_scope_type == COMPILER_SCOPE_ASYNC_FUNCTION
+            || c->u->u_scope_type == COMPILER_SCOPE_LAMBDA) {
+            PyObject *dot_locals_str = _PyUnicode_FromId(&dot_locals);
+            if (dot_locals_str == NULL) {
+                return NULL;
+            }
+            qualname = PyUnicode_Concat(c->u->u_qualname, dot_locals_str);
+            if (qualname == NULL) {
+                return NULL;
+            }
+        }
+        else {
+            qualname = c->u->u_qualname ? c->u->u_qualname : c->u->u_name;
+            Py_INCREF(qualname);
+        }
+    }
+
+    if (qualname != NULL) {
+        PyObject *dot_str = _PyUnicode_FromId(&dot);
+        if (dot_str == NULL) {
+            Py_DECREF(qualname);
+            return NULL;
+        }
+        PyObject *new_qualname = PyUnicode_Concat(qualname, dot_str);
+        Py_DECREF(qualname);
+        if (new_qualname == NULL) {
+            return NULL;
+        }
+        PyUnicode_Append(&new_qualname, name);
+        if (new_qualname == NULL) {
+            return NULL;
+        }
+        return new_qualname;
+    }
+    else {
+        Py_INCREF(name);
+        return name;
+    }
+}
 
 /* Allocate a new block and return a pointer to it.
    Returns NULL on error.
@@ -1165,6 +1226,10 @@ stack_effect(int opcode, int oparg, int jump)
         case MAKE_FUNCTION:
             return 0 - ((oparg & 0x01) != 0) - ((oparg & 0x02) != 0) -
                 ((oparg & 0x04) != 0) - ((oparg & 0x08) != 0);
+        case MAKE_FUNCTION_PROTOTYPE:
+            return -1 - ((oparg & 0x01) != 0) - ((oparg & 0x02) != 0) -
+                ((oparg & 0x04) != 0) - ((oparg & 0x08) != 0) -
+                ((oparg & 0x20) != 0)  - ((oparg & 0x40) != 0);
         case BUILD_SLICE:
             if (oparg == 3)
                 return -2;
@@ -2371,6 +2436,85 @@ compiler_default_arguments(struct compiler *c, arguments_ty args)
 }
 
 static int
+compiler_visit_argname(struct compiler *c, identifier id)
+{
+    PyObject *mangled = _Py_Mangle(c->u->u_private, id);
+    if (!mangled) {
+        return 0;
+    }
+    ADDOP_LOAD_CONST(c, mangled);
+    Py_DECREF(mangled);
+    return 1;
+}
+
+static int
+compiler_visit_posonlyargnames(struct compiler *c, arguments_ty args)
+{
+    Py_ssize_t length = asdl_seq_LEN(args->posonlyargs);
+    for (Py_ssize_t i = 0; i < length; i++) {
+        arg_ty arg = (arg_ty)asdl_seq_GET(args->posonlyargs, i);
+        if (!compiler_visit_argname(c, arg->arg)) {
+            return 0;
+        }
+    }
+    ADDOP_I(c, BUILD_TUPLE, length);
+    return 1;
+}
+
+static int
+compiler_visit_argnames(struct compiler *c, arguments_ty args)
+{
+    Py_ssize_t length = asdl_seq_LEN(args->args);
+    for (Py_ssize_t i = 0; i < length; i++) {
+        arg_ty arg = (arg_ty)asdl_seq_GET(args->args, i);
+        if (!compiler_visit_argname(c, arg->arg)) {
+            return 0;
+        }
+    }
+    ADDOP_I(c, BUILD_TUPLE, length);
+    return 1;
+}
+
+static int
+compiler_visit_kwonlyargnames(struct compiler *c, arguments_ty args)
+{
+    Py_ssize_t length = asdl_seq_LEN(args->kwonlyargs);
+    for (Py_ssize_t i = 0; i < length; i++) {
+        arg_ty arg = (arg_ty)asdl_seq_GET(args->kwonlyargs, i);
+        if (!compiler_visit_argname(c, arg->arg)) {
+            return 0;
+        }
+    }
+    ADDOP_I(c, BUILD_TUPLE, length);
+    return 1;
+}
+
+static Py_ssize_t
+compiler_argnames(struct compiler *c, arguments_ty args)
+{
+    Py_ssize_t protoflags = 0;
+    if (args->posonlyargs && asdl_seq_LEN(args->posonlyargs) > 0) {
+        if (!compiler_visit_posonlyargnames(c, args)) {
+            return -1;
+        }
+        protoflags |= 0x08;
+    }
+    if (args->args && asdl_seq_LEN(args->args) > 0) {
+        if (!compiler_visit_argnames(c, args)) {
+            return -1;
+        }
+        protoflags |= 0x20;
+    }
+    if (args->kwonlyargs && asdl_seq_LEN(args->kwonlyargs) > 0) {
+        if (!compiler_visit_kwonlyargnames(c, args)) {
+            return -1;
+        }
+        protoflags |= 0x40;
+    }
+    return protoflags;
+}
+
+static int
 forbidden_name(struct compiler *c, identifier name, expr_context_ty ctx)
 {
 
@@ -2426,6 +2570,13 @@ compiler_check_debug_args(struct compiler *c, arguments_ty args)
 static int
 compiler_function(struct compiler *c, stmt_ty s, int is_async)
 {
+    /* funcflags
+        0x01: defaults
+        0x02: kwdefaults
+        0x04: annotations
+        0x08: closure
+    */
+
     PyCodeObject *co;
     PyObject *qualname, *docstring = NULL;
     arguments_ty args;
@@ -2521,6 +2672,91 @@ compiler_function(struct compiler *c, stmt_ty s, int is_async)
     Py_DECREF(qualname);
     Py_DECREF(co);
 
+    if (!compiler_apply_decorators(c, decos))
+        return 0;
+    return compiler_nameop(c, name, Store);
+}
+
+static int
+compiler_function_prototype(struct compiler *c, stmt_ty s, int is_async)
+{
+    /* protoflags
+        0x01: defaults
+        0x02: kwdefaults
+        0x04: annotations
+        0x08: posonlyargnames
+        0x20: argnames
+        0x40: kwonlyargnames
+        0x80: async
+    */
+
+    asdl_expr_seq *decos;
+    identifier name;
+    arguments_ty args;
+    expr_ty returns;
+    Py_ssize_t protoflags;
+    Py_ssize_t annotations;
+    Py_ssize_t argnames;
+    PyObject *qualname;
+
+    if (is_async) {
+        assert(s->kind == AsyncFunctionProto_kind);
+
+        args = s->v.AsyncFunctionProto.args;
+        returns = s->v.AsyncFunctionProto.returns;
+        decos = s->v.AsyncFunctionProto.decorator_list;
+        name = s->v.AsyncFunctionProto.name;
+    }
+    else {
+        assert(s->kind == FunctionProto_kind);
+
+        args = s->v.FunctionProto.args;
+        returns = s->v.FunctionProto.returns;
+        decos = s->v.FunctionProto.decorator_list;
+        name = s->v.FunctionProto.name;
+    }
+
+    if (!compiler_check_debug_args(c, args))
+        return 0;
+
+    if (!compiler_decorators(c, decos))
+        return 0;
+
+    protoflags = compiler_default_arguments(c, args);
+    if (protoflags == -1) {
+        return 0;
+    }
+
+    annotations = compiler_visit_annotations(c, args, returns);
+    if (annotations == 0) {
+        return 0;
+    }
+    else if (annotations > 0) {
+        protoflags |= 0x04;
+    }
+
+    argnames = compiler_argnames(c, args);
+    if (argnames == -1) {
+        return 0;
+    }
+    else {
+        protoflags |= argnames;
+    }
+
+    if (is_async) {
+        protoflags |= 0x80;
+    }
+
+
+    qualname = compiler_concat_qualname(c, name);
+    if (!qualname) {
+        return 0;
+    }
+
+    ADDOP_LOAD_CONST(c, qualname);
+    ADDOP_LOAD_CONST(c, name);
+
+    ADDOP_I(c, MAKE_FUNCTION_PROTOTYPE, protoflags);
     if (!compiler_apply_decorators(c, decos))
         return 0;
     return compiler_nameop(c, name, Store);
@@ -3914,6 +4150,8 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
     switch (s->kind) {
     case FunctionDef_kind:
         return compiler_function(c, s, 0);
+    case FunctionProto_kind:
+        return compiler_function_prototype(c, s, 0);
     case ClassDef_kind:
         return compiler_class(c, s);
     case Return_kind:
@@ -3982,6 +4220,8 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_with(c, s, 0);
     case AsyncFunctionDef_kind:
         return compiler_function(c, s, 1);
+    case AsyncFunctionProto_kind:
+        return compiler_function_prototype(c, s, 1);
     case AsyncWith_kind:
         return compiler_async_with(c, s, 0);
     case AsyncFor_kind:

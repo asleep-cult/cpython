@@ -309,6 +309,7 @@ arguments_ty _PyPegen_make_arguments(Parser *, asdl_arg_seq *, SlashWithDefault 
 arguments_ty _PyPegen_empty_arguments(Parser *);
 AugOperator *_PyPegen_augoperator(Parser*, operator_ty type);
 stmt_ty _PyPegen_function_def_decorators(Parser *, asdl_expr_seq *, stmt_ty);
+stmt_ty _PyPegen_function_proto_decorators(Parser *, asdl_expr_seq *, stmt_ty);
 stmt_ty _PyPegen_class_def_decorators(Parser *, asdl_expr_seq *, stmt_ty);
 KeywordOrStarred *_PyPegen_keyword_or_starred(Parser *, void *, int);
 asdl_expr_seq *_PyPegen_seq_extract_starred_exprs(Parser *, asdl_seq *);

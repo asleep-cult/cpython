@@ -101,6 +101,55 @@ uint32_t _PyFunction_GetVersionForCurrentState(PyFunctionObject *func);
 #define PyFunction_GET_ANNOTATIONS(func) \
         (((PyFunctionObject *)func) -> func_annotations)
 
+typedef struct {
+    PyObject_HEAD
+    int proto_async;
+    PyObject *proto_name;
+    PyObject *proto_qualname;
+    PyObject *proto_dict;
+    PyObject *proto_weakreflist;
+    PyObject *proto_module;
+    PyObject *proto_annotations;
+    PyObject *proto_posonlyargnames;
+    PyObject *proto_argnames;
+    PyObject *proto_kwonlyargnames;
+    PyObject *proto_defaults;
+    PyObject *proto_kwdefaults;
+} PyFunctionPrototypeObject;
+
+PyAPI_DATA(PyTypeObject) PyFunctionPrototype_Type;
+
+#define PyFunctionPrototype_Check(op) Py_IS_TYPE(op, &PyFunctionPrototype_Type)
+
+/* Macros for direct access to these values. Type checks are *not*
+   done, so use with care. */
+#define PyFunctionPrototype_GET_ANNOTATIONS(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_annotations)
+#define PyFunctionPrototype_GET_POS_ONLY_ARG_NAMES(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_posonlyargnames)
+#define PyFunctionPrototype_GET_ARG_NAMES(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_argnames)
+#define PyFunctionPrototype_GET_KW_ONLY_ARG_NAMES(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_kwonlyargnames)
+#define PyFunctionPrototype_GET_DEFAULTS(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_defaults)
+#define PyFunctionPrototype_GET_KW_DEFAULTS(proto) \
+        (((PyFunctionPrototypeObject *)proto) -> proto_kwdefaults)
+
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_New(PyObject *, PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetAnnotations(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetAnnotations(PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetPosOnlyArgNames(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetPosOnlyArgNames(PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetArgNames(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetArgNames(PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetKwOnlyArgNames(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetKwOnlyArgNames(PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetDefaults(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetDefaults(PyObject *, PyObject *);
+PyAPI_FUNC(PyObject *) PyFunctionPrototype_GetKwDefaults(PyObject *);
+PyAPI_FUNC(int) PyFunctionPrototype_SetKwDefaults(PyObject *, PyObject *);
+
 /* The classmethod and staticmethod types lives here, too */
 PyAPI_DATA(PyTypeObject) PyClassMethod_Type;
 PyAPI_DATA(PyTypeObject) PyStaticMethod_Type;

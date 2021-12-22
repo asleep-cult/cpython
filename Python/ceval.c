@@ -5079,6 +5079,54 @@ check_eval_breaker:
             DISPATCH();
         }
 
+        TARGET(MAKE_FUNCTION_PROTOTYPE) {
+            PyObject *name = POP();
+            PyObject *qualname = POP();
+            PyFunctionPrototypeObject *proto = (PyFunctionPrototypeObject *)
+                PyFunctionPrototype_New(name, qualname, NULL);
+
+            if (proto == NULL) {
+                goto error;
+            }
+
+            if (oparg & 0x80) {
+                proto->proto_async = 1;
+            }
+
+            if (oparg & 0x40) {
+                assert(PyTuple_CheckExact(TOP()));
+                proto->proto_kwonlyargnames = POP();
+            }
+
+            if (oparg & 0x20) {
+                assert(PyTuple_CheckExact(TOP()));
+                proto->proto_argnames = POP();
+            }
+
+            if (oparg & 0x08) {
+                assert(PyTuple_CheckExact(TOP()));
+                proto->proto_posonlyargnames = POP();
+            }
+
+            if (oparg & 0x04) {
+                assert(PyTuple_CheckExact(TOP()));
+                proto->proto_annotations = POP();
+            }
+
+            if (oparg & 0x02) {
+                assert(PyDict_CheckExact(TOP()));
+                proto->proto_kwdefaults = POP();
+            }
+
+            if (oparg & 0x01) {
+                assert(PyTuple_CheckExact(TOP()));
+                proto->proto_defaults = POP();
+            }
+
+            PUSH((PyObject *)proto);
+            DISPATCH();
+        }
+
         TARGET(BUILD_SLICE) {
             PyObject *start, *stop, *step, *slice;
             if (oparg == 3)

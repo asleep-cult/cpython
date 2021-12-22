@@ -1888,6 +1888,7 @@ _PyTypes_InitTypes(PyInterpreterState *interp)
     INIT_TYPE(PyFrame_Type);
     INIT_TYPE(PyFrozenSet_Type);
     INIT_TYPE(PyFunction_Type);
+    INIT_TYPE(PyFunctionPrototype_Type);
     INIT_TYPE(PyGen_Type);
     INIT_TYPE(PyGetSetDescr_Type);
     INIT_TYPE(PyInstanceMethod_Type);

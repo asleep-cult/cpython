@@ -14,7 +14,12 @@ module Python
           | AsyncFunctionDef(identifier name, arguments args,
                              stmt* body, expr* decorator_list, expr? returns,
                              string? type_comment)
-
+          
+          | FunctionProto(identifier name, arguments args, expr* decorator_list,
+                          expr? returns, string? type_comment)
+          | AsyncFunctionProto(identifier name, arguments args, expr* decorator_list,
+                              expr? returns, string? type_comment)
+          
           | ClassDef(identifier name,
              expr* bases,
              keyword* keywords,

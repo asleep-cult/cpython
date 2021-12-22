@@ -319,6 +319,8 @@ static PyMemberDef func_memberlist[] = {
     {NULL}  /* Sentinel */
 };
 
+#undef OFF
+
 static PyObject *
 func_get_code(PyFunctionObject *op, void *Py_UNUSED(ignored))
 {
@@ -816,6 +818,630 @@ functools_wraps(PyObject *wrapper, PyObject *wrapped)
 
 #undef COPY_ATTR
 }
+
+PyObject *
+PyFunctionPrototype_New(PyObject *name, PyObject *qualname, PyObject *module)
+{
+    assert(name != NULL);
+    assert(PyUnicode_Check(name));
+    Py_INCREF(name);
+
+    assert(qualname != NULL);
+    assert(PyUnicode_Check(qualname));
+    Py_INCREF(qualname);
+
+    Py_XINCREF(module);
+
+    PyFunctionPrototypeObject *op = PyObject_GC_New(PyFunctionPrototypeObject,
+                                                    &PyFunctionPrototype_Type);
+    if (op == NULL) {
+        goto error;
+    }
+
+    op->proto_async = 0;
+    op->proto_name = name;
+    op->proto_qualname = qualname;
+    op->proto_dict = NULL;
+    op->proto_weakreflist = NULL;
+    op->proto_module = module;
+    op->proto_annotations = NULL;
+    op->proto_posonlyargnames = NULL;
+    op->proto_argnames = NULL;
+    op->proto_kwonlyargnames = NULL;
+    op->proto_defaults = NULL;
+    op->proto_kwdefaults = NULL;
+    _PyObject_GC_TRACK(op);
+    return (PyObject *)op;
+
+error:
+    Py_DECREF(name);
+    Py_DECREF(qualname);
+    Py_XDECREF(module);
+    return NULL;
+}
+
+PyObject *
+PyFunctionPrototype_GetAnnotations(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_annotations;
+}
+
+int
+PyFunctionPrototype_SetAnnotations(PyObject *op, PyObject *annotations)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (annotations == Py_None)
+        annotations = NULL;
+    else if (annotations && PyDict_Check(annotations)) {
+        Py_INCREF(annotations);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-dict annotations");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_annotations, annotations);
+    return 0;
+}
+
+PyObject *
+PyFunctionPrototype_GetPosOnlyArgNames(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_posonlyargnames;
+}
+
+int
+PyFunctionPrototype_SetPosOnlyArgNames(PyObject *op, PyObject *names)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (names == Py_None)
+        names = NULL;
+    else if (names && PyTuple_Check(names)) {
+        Py_INCREF(names);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-tuple posonlyargnames");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_annotations, names);
+    return 0;
+}
+
+PyObject *
+PyFunctionPrototype_GetArgNames(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_argnames;
+}
+
+int
+PyFunctionPrototype_SetArgNames(PyObject *op, PyObject *names)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (names == Py_None)
+        names = NULL;
+    else if (names && PyTuple_Check(names)) {
+        Py_INCREF(names);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-tuple argnames");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_argnames, names);
+    return 0;
+}
+
+PyObject *
+PyFunctionPrototype_GetKwOnlyArgNames(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_kwonlyargnames;
+}
+
+int PyFunctionPrototype_SetKwOnlyArgNames(PyObject *op, PyObject *names)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (names == Py_None)
+        names = NULL;
+    else if (names && PyTuple_Check(names)) {
+        Py_INCREF(names);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-tuple kwonlyargnames");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_kwonlyargnames, names);
+    return 0;
+}
+
+PyObject *
+PyFunctionPrototype_GetDefaults(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_defaults;
+}
+
+int
+PyFunctionPrototype_SetDefaults(PyObject *op, PyObject *defaults)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (defaults == Py_None)
+        defaults = NULL;
+    else if (defaults && PyTuple_Check(defaults)) {
+        Py_INCREF(defaults);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-tuple kwonlyargnames");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_defaults, defaults);
+    return 0;
+}
+
+PyObject *
+PyFunctionPrototype_GetKwDefaults(PyObject *op)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    return ((PyFunctionPrototypeObject *)op)->proto_kwdefaults;
+}
+
+int
+PyFunctionPrototype_SetKwDefaults(PyObject *op, PyObject *defaults)
+{
+    if (!PyFunctionPrototype_Check(op)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    if (defaults == Py_None)
+        defaults = NULL;
+    else if (defaults && PyDict_Check(defaults)) {
+        Py_INCREF(defaults);
+    }
+    else {
+        PyErr_SetString(PyExc_SystemError,
+                        "non-tuple kwonlyargnames");
+    }
+    Py_XSETREF(((PyFunctionPrototypeObject *)op)->proto_kwdefaults, defaults);
+    return 0;
+}
+
+#define OFF(x) offsetof(PyFunctionPrototypeObject, x)
+
+static PyMemberDef proto_memberlist[] = {
+    {"__module__", T_OBJECT, OFF(proto_module), 0},
+    {"__async__", T_BOOL, OFF(proto_async), 0},
+    {NULL} /* Sentinel */
+};
+
+#undef OFF
+
+static PyObject *
+proto_get_name(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    Py_INCREF(op->proto_name);
+    return op->proto_name;
+}
+
+static int
+proto_set_name(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Not legal to del p.proto_name or to set it to anything
+     * other than a string object. */
+    if (value == NULL || !PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__name__ must be set to a string object");
+        return -1;
+    }
+    Py_INCREF(value);
+    Py_XSETREF(op->proto_name, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_qualname(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    Py_INCREF(op->proto_qualname);
+    return op->proto_qualname;
+}
+
+static int
+proto_set_qualname(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Not legal to del p.proto_qualname or to set it to anything
+     * other than a string object. */
+    if (value == NULL || !PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__qualname__ must be set to a string object");
+        return -1;
+    }
+    Py_INCREF(value);
+    Py_XSETREF(op->proto_qualname, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_annotations(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_annotations == NULL) {
+        op->proto_annotations = PyDict_New();
+        if (op->proto_annotations == NULL)
+            return NULL;
+    }
+    if (PyTuple_CheckExact(op->proto_annotations)) {
+        PyObject *ann_tuple = op->proto_annotations;
+        PyObject *ann_dict = PyDict_New();
+        if (ann_dict == NULL) {
+            return NULL;
+        }
+
+        assert(PyTuple_GET_SIZE(ann_tuple) % 2 == 0);
+
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(ann_tuple); i += 2) {
+            int err = PyDict_SetItem(ann_dict,
+                PyTuple_GET_ITEM(ann_tuple, i),
+                PyTuple_GET_ITEM(ann_tuple, i + 1));
+
+            if (err < 0)
+                return NULL;
+        }
+        Py_SETREF(op->proto_annotations, ann_dict);
+    }
+    Py_INCREF(op->proto_annotations);
+    return op->proto_annotations;
+}
+
+static int
+proto_set_annotations(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    if (value == Py_None)
+        value = NULL;
+    /* Legal to del p.proto_annotations.
+     * Can only set proto_annotations to NULL (through C api)
+     * or a dict. */
+    if (value != NULL && !PyDict_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__annotations__ must be set to a dict object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_annotations, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_posonlyargnames(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_posonlyargnames == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(op->proto_posonlyargnames);
+    return op->proto_posonlyargnames;
+}
+
+static int
+proto_set_posonlyargnames(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Legal to del proto.proto_posonlyargnames.
+     * Can only set proto_posonlyargnames to NULL or a tuple. */
+    if (value == Py_None)
+        value = NULL;
+    if (value != NULL && !PyTuple_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__posonlyargnames__ must be set to a tuple object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_posonlyargnames, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_argnames(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_argnames == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(op->proto_argnames);
+    return op->proto_argnames;
+}
+
+static int
+proto_set_argnames(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Legal to del proto.proto_argnames.
+     * Can only set proto_argnames to NULL or a tuple. */
+    if (value == Py_None)
+        value = NULL;
+    if (value != NULL && !PyTuple_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__argnames__ must be set to a tuple object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_argnames, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_kwonlyargnames(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_kwonlyargnames == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(op->proto_kwonlyargnames);
+    return op->proto_kwonlyargnames;
+}
+
+static int
+proto_set_kwonlyargnames(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Legal to del proto.proto_kwonlyargnames.
+     * Can only set proto_kwonlyargnames to NULL or a tuple. */
+    if (value == Py_None)
+        value = NULL;
+    if (value != NULL && !PyTuple_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__kwonlyargnames__ must be set to a tuple object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_kwonlyargnames, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_defaults(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_defaults == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(op->proto_defaults);
+    return op->proto_defaults;
+}
+
+static int
+proto_set_defaults(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    /* Legal to del proto.proto_defaults.
+     * Can only set proto_defaults to NULL or a tuple. */
+    if (value == Py_None)
+        value = NULL;
+    if (value != NULL && !PyTuple_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__defaults__ must be set to a tuple object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_defaults, value);
+    return 0;
+}
+
+static PyObject *
+proto_get_kwdefaults(PyFunctionPrototypeObject *op, void *Py_UNUSED(ignored))
+{
+    if (op->proto_kwdefaults == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(op->proto_kwdefaults);
+    return op->proto_kwdefaults;
+}
+
+static int
+proto_set_kwdefaults(PyFunctionPrototypeObject *op, PyObject *value, void *Py_UNUSED(ignored))
+{
+    if (value == Py_None)
+        value = NULL;
+    /* Legal to del p.proto_kwdefaults.
+     * Can only set proto_kwdefaults to NULL or a dict. */
+    if (value != NULL && !PyDict_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "__kwdefaults__ must be set to a dict object");
+        return -1;
+    }
+    Py_XINCREF(value);
+    Py_XSETREF(op->proto_defaults, value);
+    return 0;
+}
+
+static PyGetSetDef proto_getsetlist[] = {
+    {"__name__", (getter)proto_get_name, (setter)proto_set_name},
+    {"__qualname__", (getter)proto_get_qualname, (setter)proto_set_qualname},
+    {"__annotations__", (getter)proto_get_annotations, (setter)proto_set_annotations},
+    {"__posonlyargnames__", (getter)proto_get_posonlyargnames,
+     (setter)proto_set_posonlyargnames},
+    {"__argnames__", (getter)proto_get_argnames, (setter)proto_set_argnames},
+    {"__kwonlyargnames__", (getter)proto_get_kwonlyargnames,
+     (setter)proto_set_kwonlyargnames},
+    {"__defaults__", (getter)proto_get_defaults, (setter)proto_set_defaults},
+    {"__kwdefaults__", (getter)proto_get_kwdefaults,
+     (setter)proto_set_kwdefaults},
+    {NULL} /* Sentinel */
+};
+
+/*[clinic input]
+class prototype "PyFunctionPrototypeObject" "&PyFunctionPrototype_Type"
+[clinic start generated code]*/
+/*[clinic end generated code: output=da39a3ee5e6b4b0d input=01d6eae20b87cb8f]*/
+
+/*[clinic input]
+@classmethod
+prototype.__new__ as proto_new
+    name: object
+        a string that specifies the name
+    qualname: object = None
+        a string that specifies the qualname, defaults to name
+    module: object = None
+        the module
+    argdefs as defaults: object = None
+        a tuple that specifies the default arguments
+
+Create a function prototype object.
+[clinic start generated code]*/
+
+static PyObject *
+proto_new_impl(PyTypeObject *type, PyObject *name, PyObject *qualname,
+               PyObject *module, PyObject *defaults)
+/*[clinic end generated code: output=1757f8efcd0e63b1 input=4464419bb17e82d2]*/
+{
+    PyFunctionPrototypeObject *proto;
+
+    if (!PyUnicode_Check(name)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "arg 1 (name) must be a string");
+        return NULL;
+    }
+    if (qualname == Py_None) {
+        qualname = name;
+    }
+    else if (!PyUnicode_Check(qualname)) {
+        PyErr_SetString(PyExc_TypeError,
+            "arg 2 (qualname) must be None or a string");
+        return NULL;
+    }
+    if (defaults != Py_None && !PyTuple_Check(defaults)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "arg 2 (defaults) must be None or a tuple");
+        return NULL;
+    }
+
+    proto = (PyFunctionPrototypeObject *)PyFunctionPrototype_New(name, qualname, module);
+    if (proto == NULL) {
+        return NULL;
+    }
+    if (defaults != Py_None) {
+        Py_INCREF(defaults);
+        proto->proto_defaults = defaults;
+    }
+
+    return (PyObject *)proto;
+}
+
+static int
+proto_clear(PyFunctionPrototypeObject *op)
+{
+    Py_CLEAR(op->proto_name);
+    Py_CLEAR(op->proto_qualname);
+    Py_CLEAR(op->proto_dict);
+    Py_CLEAR(op->proto_module);
+    Py_CLEAR(op->proto_annotations);
+    Py_CLEAR(op->proto_posonlyargnames);
+    Py_CLEAR(op->proto_argnames);
+    Py_CLEAR(op->proto_kwonlyargnames);
+    Py_CLEAR(op->proto_defaults);
+    Py_CLEAR(op->proto_kwdefaults);
+    return 0;
+}
+
+static void
+proto_dealloc(PyFunctionPrototypeObject *op)
+{
+    _PyObject_GC_UNTRACK(op);
+    if (op->proto_weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject *)op);
+    }
+    (void)proto_clear(op);
+    PyObject_GC_Del(op);
+}
+
+static PyObject*
+proto_repr(PyFunctionPrototypeObject *op)
+{
+    return PyUnicode_FromFormat("<function-prototype %U at %p>",
+                                op->proto_qualname, op);
+}
+
+static int
+proto_traverse(PyFunctionPrototypeObject *p, visitproc visit, void *arg)
+{
+    Py_VISIT(p->proto_name);
+    Py_VISIT(p->proto_qualname);
+    Py_VISIT(p->proto_dict);
+    Py_VISIT(p->proto_module);
+    Py_VISIT(p->proto_annotations);
+    Py_VISIT(p->proto_posonlyargnames);
+    Py_VISIT(p->proto_argnames);
+    Py_VISIT(p->proto_kwonlyargnames);
+    Py_VISIT(p->proto_defaults);
+    Py_VISIT(p->proto_kwdefaults);
+    return 0;
+}
+
+PyTypeObject PyFunctionPrototype_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "function-prototype",
+    sizeof(PyFunctionPrototypeObject),
+    0,
+    (destructor)proto_dealloc,                  /* tp_dealloc */
+    0,                                          /* tp_vectorcall_offset */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_as_async */
+    (reprfunc)proto_repr,                       /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,    /* tp_flags */
+    proto_new__doc__,                           /* tp_doc */
+    (traverseproc)proto_traverse,               /* tp_traverse */
+    (inquiry)proto_clear,                       /* tp_clear */
+    0,                                          /* tp_richcompare */
+    offsetof(PyFunctionPrototypeObject,
+             proto_weakreflist),                /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    0,                                          /* tp_methods */
+    proto_memberlist,                           /* tp_members */
+    proto_getsetlist,                           /* tp_getset */
+    0,                                          /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    offsetof(PyFunctionPrototypeObject,
+             proto_dict),                       /* tp_dictoffset */
+    0,                                          /* tp_init */
+    0,                                          /* tp_alloc */
+    proto_new,                                  /* tp_new */
+};
 
 
 /* Class method object */

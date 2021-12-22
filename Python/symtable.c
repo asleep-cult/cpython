@@ -1227,6 +1227,19 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         if (!symtable_exit_block(st))
             VISIT_QUIT(st, 0);
         break;
+    case FunctionProto_kind:
+        if (!symtable_add_def(st, s->v.FunctionProto.name, DEF_LOCAL, LOCATION(s)))
+            VISIT_QUIT(st, 0);
+        if (s->v.FunctionProto.args->defaults)
+            VISIT_SEQ(st, expr, s->v.FunctionProto.args->defaults);
+        if (s->v.FunctionProto.args->kw_defaults)
+            VISIT_SEQ_WITH_NULL(st, expr, s->v.FunctionProto.args->kw_defaults);
+        if (!symtable_visit_annotations(st, s, s->v.FunctionProto.args,
+                                        s->v.FunctionProto.returns))
+            VISIT_QUIT(st, 0);
+        if (s->v.FunctionProto.decorator_list)
+            VISIT_SEQ(st, expr, s->v.FunctionProto.decorator_list);
+        break;
     case ClassDef_kind: {
         PyObject *tmp;
         if (!symtable_add_def(st, s->v.ClassDef.name, DEF_LOCAL, LOCATION(s)))
@@ -1468,6 +1481,19 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         VISIT_SEQ(st, stmt, s->v.AsyncFunctionDef.body);
         if (!symtable_exit_block(st))
             VISIT_QUIT(st, 0);
+        break;
+    case AsyncFunctionProto_kind:
+        if (!symtable_add_def(st, s->v.AsyncFunctionProto.name, DEF_LOCAL, LOCATION(s)))
+            VISIT_QUIT(st, 0);
+        if (s->v.AsyncFunctionProto.args->defaults)
+            VISIT_SEQ(st, expr, s->v.AsyncFunctionProto.args->defaults);
+        if (s->v.AsyncFunctionProto.args->kw_defaults)
+            VISIT_SEQ_WITH_NULL(st, expr, s->v.AsyncFunctionProto.args->kw_defaults);
+        if (!symtable_visit_annotations(st, s, s->v.AsyncFunctionProto.args,
+                                        s->v.AsyncFunctionProto.returns))
+            VISIT_QUIT(st, 0);
+        if (s->v.AsyncFunctionProto.decorator_list)
+            VISIT_SEQ(st, expr, s->v.AsyncFunctionProto.decorator_list);
         break;
     case AsyncWith_kind:
         VISIT_SEQ(st, withitem, s->v.AsyncWith.items);

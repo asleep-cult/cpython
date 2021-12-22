@@ -126,7 +126,7 @@ simple_stmt[stmt_ty] (memo):
     | &'nonlocal' nonlocal_stmt
 
 compound_stmt[stmt_ty]:
-    | &('def' | '@' | ASYNC) function_def
+    | &('def' | '@' | ASYNC) (function_def | function_proto)
     | &'if' if_stmt
     | &('class' | '@') class_def
     | &('with' | ASYNC) with_stmt
@@ -263,12 +263,12 @@ function_def[stmt_ty]:
     | function_def_raw
 
 function_def_raw[stmt_ty]:
-    | invalid_def_raw
-    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+    | invalid_function_def_raw
+    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
         _PyAST_FunctionDef(n->v.Name.id,
                         (params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)),
                         b, NULL, a, NEW_TYPE_COMMENT(p, tc), EXTRA) }
-    | ASYNC 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] &&':' tc=[func_type_comment] b=block {
+    | ASYNC 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] ':' tc=[func_type_comment] b=block {
         CHECK_VERSION(
             stmt_ty,
             5,
@@ -276,6 +276,26 @@ function_def_raw[stmt_ty]:
             _PyAST_AsyncFunctionDef(n->v.Name.id,
                             (params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)),
                             b, NULL, a, NEW_TYPE_COMMENT(p, tc), EXTRA)
+        ) }
+
+function_proto[stmt_ty]:
+    | d=decorators f=function_proto_raw { _PyPegen_function_proto_decorators(p, d, f) }
+    | function_proto_raw
+
+function_proto_raw[stmt_ty]:
+    | invalid_function_proto_raw
+    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expressions { z }] tc=[TYPE_COMMENT] NEWLINE {
+        _PyAST_FunctionProto(n->v.Name.id,
+                        (params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)),
+                        NULL, a, NEW_TYPE_COMMENT(p, tc), EXTRA) }
+    | ASYNC 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] tc=[func_type_comment] NEWLINE {
+        CHECK_VERSION(
+            stmt_ty,
+            5,
+            "Async function prototypes are",
+            _PyAST_AsyncFunctionProto(n->v.Name.id,
+                            (params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)),
+                            NULL, a, NEW_TYPE_COMMENT(p, tc), EXTRA)
         ) }
 
 # Function parameters
@@ -1253,9 +1273,16 @@ invalid_while_stmt:
 invalid_for_stmt:
     | [ASYNC] a='for' star_targets 'in' star_expressions ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after 'for' statement on line %d", a->lineno) }
-invalid_def_raw:
+invalid_function_def_raw:
     | [ASYNC] a='def' NAME '(' [params] ')' ['->' expression] ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after function definition on line %d", a->lineno) }
+invalid_function_proto_raw:
+	| [ASYNC] a='def' NAME '(' [params] ')' ['->' expression] !NEWLINE {
+		RAISE_SYNTAX_ERROR("expected newline after function prototype on line %d, perhaps you forgot a \":\"?"),
+						   a->lineno }
+	| [ASYNC] a='def' NAME '(' [params] ')' ['->' expression] NEWLINE INDENT {
+        RAISE_INDENTATION_ERROR("unexpected indent after function prototype on line %d, parhaps you forgot a \":\"?",
+                                a->lineno) }
 invalid_class_def_raw:
     | a='class' NAME ['('[arguments] ')'] ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after class definition on line %d", a->lineno) }

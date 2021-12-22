@@ -174,14 +174,15 @@ struct _mod {
     } v;
 };
 
-enum _stmt_kind {FunctionDef_kind=1, AsyncFunctionDef_kind=2, ClassDef_kind=3,
-                  Return_kind=4, Delete_kind=5, Assign_kind=6,
-                  AugAssign_kind=7, AnnAssign_kind=8, For_kind=9,
-                  AsyncFor_kind=10, While_kind=11, If_kind=12, With_kind=13,
-                  AsyncWith_kind=14, Match_kind=15, Raise_kind=16, Try_kind=17,
-                  TryStar_kind=18, Assert_kind=19, Import_kind=20,
-                  ImportFrom_kind=21, Global_kind=22, Nonlocal_kind=23,
-                  Expr_kind=24, Pass_kind=25, Break_kind=26, Continue_kind=27};
+enum _stmt_kind {FunctionDef_kind=1, AsyncFunctionDef_kind=2,
+                  FunctionProto_kind=3, AsyncFunctionProto_kind=4,
+                  ClassDef_kind=5, Return_kind=6, Delete_kind=7, Assign_kind=8,
+                  AugAssign_kind=9, AnnAssign_kind=10, For_kind=11,
+                  AsyncFor_kind=12, While_kind=13, If_kind=14, With_kind=15,
+                  AsyncWith_kind=16, Match_kind=17, Raise_kind=18, Try_kind=19,
+                  TryStar_kind=20, Assert_kind=21, Import_kind=22,
+                  ImportFrom_kind=23, Global_kind=24, Nonlocal_kind=25,
+                  Expr_kind=26, Pass_kind=27, Break_kind=28, Continue_kind=29};
 struct _stmt {
     enum _stmt_kind kind;
     union {
@@ -202,6 +203,22 @@ struct _stmt {
             expr_ty returns;
             string type_comment;
         } AsyncFunctionDef;
+
+        struct {
+            identifier name;
+            arguments_ty args;
+            asdl_expr_seq *decorator_list;
+            expr_ty returns;
+            string type_comment;
+        } FunctionProto;
+
+        struct {
+            identifier name;
+            arguments_ty args;
+            asdl_expr_seq *decorator_list;
+            expr_ty returns;
+            string type_comment;
+        } AsyncFunctionProto;
 
         struct {
             identifier name;
@@ -648,6 +665,15 @@ stmt_ty _PyAST_AsyncFunctionDef(identifier name, arguments_ty args,
                                 decorator_list, expr_ty returns, string
                                 type_comment, int lineno, int col_offset, int
                                 end_lineno, int end_col_offset, PyArena *arena);
+stmt_ty _PyAST_FunctionProto(identifier name, arguments_ty args, asdl_expr_seq
+                             * decorator_list, expr_ty returns, string
+                             type_comment, int lineno, int col_offset, int
+                             end_lineno, int end_col_offset, PyArena *arena);
+stmt_ty _PyAST_AsyncFunctionProto(identifier name, arguments_ty args,
+                                  asdl_expr_seq * decorator_list, expr_ty
+                                  returns, string type_comment, int lineno, int
+                                  col_offset, int end_lineno, int
+                                  end_col_offset, PyArena *arena);
 stmt_ty _PyAST_ClassDef(identifier name, asdl_expr_seq * bases,
                         asdl_keyword_seq * keywords, asdl_stmt_seq * body,
                         asdl_expr_seq * decorator_list, int lineno, int

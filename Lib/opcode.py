@@ -158,6 +158,7 @@ def_op('RAISE_VARARGS', 130)    # Number of raise arguments (1, 2, or 3)
 
 def_op('MAKE_FUNCTION', 132)    # Flags
 def_op('BUILD_SLICE', 133)      # Number of items
+def_op('MAKE_FUNCTION_PROTOTYPE', 134)  # Flags
 
 def_op('MAKE_CELL', 135)
 hasfree.append(135)
