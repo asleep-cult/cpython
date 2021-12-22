@@ -249,7 +249,14 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
         break;
     case Lambda_kind:
         ret = validate_arguments(state, exp->v.Lambda.args) &&
+            (!exp->v.Lambda.returns ||
+                validate_expr(state, exp->v.Lambda.returns, Load)) &&
             validate_expr(state, exp->v.Lambda.body, Load);
+        break;
+    case LambdaProto_kind:
+        ret = validate_arguments(state, exp->v.LambdaProto.args) &&
+            (!exp->v.LambdaProto.returns ||
+                validate_expr(state, exp->v.LambdaProto.returns, Load));
         break;
     case IfExp_kind:
         ret = validate_expr(state, exp->v.IfExp.test, Load) &&
@@ -687,7 +694,7 @@ validate_stmt(struct validator *state, stmt_ty stmt)
             validate_arguments(state, stmt->v.FunctionDef.args) &&
             validate_exprs(state, stmt->v.FunctionDef.decorator_list, Load, 0) &&
             (!stmt->v.FunctionDef.returns ||
-             validate_expr(state, stmt->v.FunctionDef.returns, Load));
+                validate_expr(state, stmt->v.FunctionDef.returns, Load));
         break;
     case AsyncFunctionDef_kind:
         ret = validate_body(state, stmt->v.AsyncFunctionDef.body, "AsyncFunctionDef") &&
@@ -736,9 +743,9 @@ validate_stmt(struct validator *state, stmt_ty stmt)
             return 0;
         }
         ret = validate_expr(state, stmt->v.AnnAssign.target, Store) &&
-               (!stmt->v.AnnAssign.value ||
+            (!stmt->v.AnnAssign.value ||
                 validate_expr(state, stmt->v.AnnAssign.value, Load)) &&
-               validate_expr(state, stmt->v.AnnAssign.annotation, Load);
+            validate_expr(state, stmt->v.AnnAssign.annotation, Load);
         break;
     case For_kind:
         ret = validate_expr(state, stmt->v.For.target, Store) &&

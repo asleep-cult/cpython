@@ -96,6 +96,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->JoinedStr_type);
     Py_CLEAR(state->LShift_singleton);
     Py_CLEAR(state->LShift_type);
+    Py_CLEAR(state->LambdaProto_type);
     Py_CLEAR(state->Lambda_type);
     Py_CLEAR(state->ListComp_type);
     Py_CLEAR(state->List_type);
@@ -557,6 +558,11 @@ static const char * const UnaryOp_fields[]={
 static const char * const Lambda_fields[]={
     "args",
     "body",
+    "returns",
+};
+static const char * const LambdaProto_fields[]={
+    "args",
+    "returns",
 };
 static const char * const IfExp_fields[]={
     "test",
@@ -1351,7 +1357,8 @@ init_types(struct ast_state *state)
         "     | NamedExpr(expr target, expr value)\n"
         "     | BinOp(expr left, operator op, expr right)\n"
         "     | UnaryOp(unaryop op, expr operand)\n"
-        "     | Lambda(arguments args, expr body)\n"
+        "     | Lambda(arguments args, expr body, expr? returns)\n"
+        "     | LambdaProto(arguments args, expr? returns)\n"
         "     | IfExp(expr test, expr body, expr orelse)\n"
         "     | Dict(expr* keys, expr* values)\n"
         "     | Set(expr* elts)\n"
@@ -1398,9 +1405,18 @@ init_types(struct ast_state *state)
         "UnaryOp(unaryop op, expr operand)");
     if (!state->UnaryOp_type) return 0;
     state->Lambda_type = make_type(state, "Lambda", state->expr_type,
-                                   Lambda_fields, 2,
-        "Lambda(arguments args, expr body)");
+                                   Lambda_fields, 3,
+        "Lambda(arguments args, expr body, expr? returns)");
     if (!state->Lambda_type) return 0;
+    if (PyObject_SetAttr(state->Lambda_type, state->returns, Py_None) == -1)
+        return 0;
+    state->LambdaProto_type = make_type(state, "LambdaProto", state->expr_type,
+                                        LambdaProto_fields, 2,
+        "LambdaProto(arguments args, expr? returns)");
+    if (!state->LambdaProto_type) return 0;
+    if (PyObject_SetAttr(state->LambdaProto_type, state->returns, Py_None) ==
+        -1)
+        return 0;
     state->IfExp_type = make_type(state, "IfExp", state->expr_type,
                                   IfExp_fields, 3,
         "IfExp(expr test, expr body, expr orelse)");
@@ -2797,8 +2813,8 @@ _PyAST_UnaryOp(unaryop_ty op, expr_ty operand, int lineno, int col_offset, int
 }
 
 expr_ty
-_PyAST_Lambda(arguments_ty args, expr_ty body, int lineno, int col_offset, int
-              end_lineno, int end_col_offset, PyArena *arena)
+_PyAST_Lambda(arguments_ty args, expr_ty body, expr_ty returns, int lineno, int
+              col_offset, int end_lineno, int end_col_offset, PyArena *arena)
 {
     expr_ty p;
     if (!args) {
@@ -2817,6 +2833,31 @@ _PyAST_Lambda(arguments_ty args, expr_ty body, int lineno, int col_offset, int
     p->kind = Lambda_kind;
     p->v.Lambda.args = args;
     p->v.Lambda.body = body;
+    p->v.Lambda.returns = returns;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+expr_ty
+_PyAST_LambdaProto(arguments_ty args, expr_ty returns, int lineno, int
+                   col_offset, int end_lineno, int end_col_offset, PyArena
+                   *arena)
+{
+    expr_ty p;
+    if (!args) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'args' is required for LambdaProto");
+        return NULL;
+    }
+    p = (expr_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = LambdaProto_kind;
+    p->v.LambdaProto.args = args;
+    p->v.LambdaProto.returns = returns;
     p->lineno = lineno;
     p->col_offset = col_offset;
     p->end_lineno = end_lineno;
@@ -4491,6 +4532,26 @@ ast2obj_expr(struct ast_state *state, void* _o)
         value = ast2obj_expr(state, o->v.Lambda.body);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->body, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.Lambda.returns);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->returns, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case LambdaProto_kind:
+        tp = (PyTypeObject *)state->LambdaProto_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_arguments(state, o->v.LambdaProto.args);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->args, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.LambdaProto.returns);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->returns, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -8799,6 +8860,7 @@ obj2ast_expr(struct ast_state *state, PyObject* obj, expr_ty* out, PyArena*
     if (isinstance) {
         arguments_ty args;
         expr_ty body;
+        expr_ty returns;
 
         if (_PyObject_LookupAttr(obj, state->args, &tmp) < 0) {
             return 1;
@@ -8834,8 +8896,73 @@ obj2ast_expr(struct ast_state *state, PyObject* obj, expr_ty* out, PyArena*
             if (res != 0) goto failed;
             Py_CLEAR(tmp);
         }
-        *out = _PyAST_Lambda(args, body, lineno, col_offset, end_lineno,
-                             end_col_offset, arena);
+        if (_PyObject_LookupAttr(obj, state->returns, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            returns = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'Lambda' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &returns, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_Lambda(args, body, returns, lineno, col_offset,
+                             end_lineno, end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    tp = state->LambdaProto_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        arguments_ty args;
+        expr_ty returns;
+
+        if (_PyObject_LookupAttr(obj, state->args, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"args\" missing from LambdaProto");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'LambdaProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_arguments(state, tmp, &args, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->returns, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            returns = NULL;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'LambdaProto' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &returns, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_LambdaProto(args, returns, lineno, col_offset,
+                                  end_lineno, end_col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -12383,6 +12510,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Lambda", state->Lambda_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "LambdaProto", state->LambdaProto_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "IfExp", state->IfExp_type) < 0) {

@@ -284,7 +284,7 @@ function_proto[stmt_ty]:
 
 function_proto_raw[stmt_ty]:
     | invalid_function_proto_raw
-    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expressions { z }] tc=[TYPE_COMMENT] NEWLINE {
+    | 'def' n=NAME &&'(' params=[params] ')' a=['->' z=expression { z }] tc=[TYPE_COMMENT] NEWLINE {
         _PyAST_FunctionProto(n->v.Name.id,
                         (params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)),
                         NULL, a, NEW_TYPE_COMMENT(p, tc), EXTRA) }
@@ -649,6 +649,7 @@ expression[expr_ty] (memo):
     | a=disjunction 'if' b=disjunction 'else' c=expression { _PyAST_IfExp(b, a, c, EXTRA) }
     | disjunction
     | lambdef
+    | lambdaproto
 
 yield_expr[expr_ty]:
     | 'yield' 'from' a=expression { _PyAST_YieldFrom(a, EXTRA) }
@@ -825,9 +826,18 @@ group[expr_ty]:
 # Lambda functions
 # ----------------
 
+# lambdef uses params when the argument list is parenthesized.
+# lambdaproto always uses params but requires the argument list to be parenthesized.
+
 lambdef[expr_ty]:
     | 'lambda' a=[lambda_params] ':' b=expression {
-        _PyAST_Lambda((a) ? a : CHECK(arguments_ty, _PyPegen_empty_arguments(p)), b, EXTRA) }
+        _PyAST_Lambda((a) ? a : CHECK(arguments_ty, _PyPegen_empty_arguments(p)), b, NULL, EXTRA) }
+    | 'lambda' '(' params=[params] ')' a=['->' z=expression { z }] ':' b=expression {
+		_PyAST_Lambda((params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)), b, a, EXTRA) }
+
+lambdaproto[expr_ty]:
+    | 'lambda' '(' params=[params] ')' a=['->' z=expression { z }] {
+		_PyAST_LambdaProto((params) ? params : CHECK(arguments_ty, _PyPegen_empty_arguments(p)), a, EXTRA) }
 
 lambda_params[arguments_ty]:
     | invalid_lambda_parameters
@@ -1102,6 +1112,7 @@ expression_without_invalid[expr_ty]:
     | a=disjunction 'if' b=disjunction 'else' c=expression { _PyAST_IfExp(b, a, c, EXTRA) }
     | disjunction
     | lambdef
+    | lambdaproto
 invalid_legacy_expression:
     | a=NAME !'(' b=star_expressions {
         _PyPegen_check_legacy_stmt(p, a) ? RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b,
@@ -1176,8 +1187,6 @@ invalid_parameters_helper: # This is only there to avoid type errors
 invalid_lambda_parameters:
     | lambda_param_no_default* invalid_lambda_parameters_helper a=lambda_param_no_default {
         RAISE_SYNTAX_ERROR_KNOWN_LOCATION(a, "non-default argument follows default argument") }
-    | lambda_param_no_default* a='(' ','.lambda_param+ ','? b=')' {
-        RAISE_SYNTAX_ERROR_KNOWN_RANGE(a, b, "Lambda expression parameters cannot be parenthesized") }
 invalid_lambda_parameters_helper:
     | a=lambda_slash_with_default { _PyPegen_singleton_seq(p, a) }
     | lambda_param_with_default+
@@ -1278,8 +1287,8 @@ invalid_function_def_raw:
         RAISE_INDENTATION_ERROR("expected an indented block after function definition on line %d", a->lineno) }
 invalid_function_proto_raw:
 	| [ASYNC] a='def' NAME '(' [params] ')' ['->' expression] !NEWLINE {
-		RAISE_SYNTAX_ERROR("expected newline after function prototype on line %d, perhaps you forgot a \":\"?"),
-						   a->lineno }
+        RAISE_SYNTAX_ERROR("expected newline after function prototype on line %d, perhaps you forgot a \":\"?"),
+                           a->lineno }
 	| [ASYNC] a='def' NAME '(' [params] ')' ['->' expression] NEWLINE INDENT {
         RAISE_INDENTATION_ERROR("unexpected indent after function prototype on line %d, parhaps you forgot a \":\"?",
                                 a->lineno) }

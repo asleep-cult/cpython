@@ -48,7 +48,6 @@
 #define ANNOTATION_NOT_ALLOWED \
 "'%s' can not be used within an annotation"
 
-
 #define LOCATION(x) \
  (x)->lineno, (x)->col_offset, (x)->end_lineno, (x)->end_col_offset
 
@@ -222,7 +221,9 @@ static int symtable_visit_params(struct symtable *st, asdl_arg_seq *args);
 static int symtable_visit_annotation(struct symtable *st, expr_ty annotation);
 static int symtable_visit_argannotations(struct symtable *st, asdl_arg_seq *args);
 static int symtable_implicit_arg(struct symtable *st, int pos);
-static int symtable_visit_annotations(struct symtable *st, stmt_ty, arguments_ty, expr_ty);
+static int symtable_visit_annotations(struct symtable *st, void *o, int lineno,
+                                      int col_offset, int end_lineno, int end_col_offset,
+                                      arguments_ty a, expr_ty returns);
 static int symtable_visit_withitem(struct symtable *st, withitem_ty item);
 static int symtable_visit_match_case(struct symtable *st, match_case_ty m);
 static int symtable_visit_pattern(struct symtable *st, pattern_ty s);
@@ -1213,7 +1214,7 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
             VISIT_SEQ(st, expr, s->v.FunctionDef.args->defaults);
         if (s->v.FunctionDef.args->kw_defaults)
             VISIT_SEQ_WITH_NULL(st, expr, s->v.FunctionDef.args->kw_defaults);
-        if (!symtable_visit_annotations(st, s, s->v.FunctionDef.args,
+        if (!symtable_visit_annotations(st, s, LOCATION(s), s->v.FunctionDef.args,
                                         s->v.FunctionDef.returns))
             VISIT_QUIT(st, 0);
         if (s->v.FunctionDef.decorator_list)
@@ -1234,7 +1235,7 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
             VISIT_SEQ(st, expr, s->v.FunctionProto.args->defaults);
         if (s->v.FunctionProto.args->kw_defaults)
             VISIT_SEQ_WITH_NULL(st, expr, s->v.FunctionProto.args->kw_defaults);
-        if (!symtable_visit_annotations(st, s, s->v.FunctionProto.args,
+        if (!symtable_visit_annotations(st, s, LOCATION(s), s->v.FunctionProto.args,
                                         s->v.FunctionProto.returns))
             VISIT_QUIT(st, 0);
         if (s->v.FunctionProto.decorator_list)
@@ -1466,7 +1467,7 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         if (s->v.AsyncFunctionDef.args->kw_defaults)
             VISIT_SEQ_WITH_NULL(st, expr,
                                 s->v.AsyncFunctionDef.args->kw_defaults);
-        if (!symtable_visit_annotations(st, s, s->v.AsyncFunctionDef.args,
+        if (!symtable_visit_annotations(st, s, LOCATION(s), s->v.AsyncFunctionDef.args,
                                         s->v.AsyncFunctionDef.returns))
             VISIT_QUIT(st, 0);
         if (s->v.AsyncFunctionDef.decorator_list)
@@ -1489,7 +1490,7 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
             VISIT_SEQ(st, expr, s->v.AsyncFunctionProto.args->defaults);
         if (s->v.AsyncFunctionProto.args->kw_defaults)
             VISIT_SEQ_WITH_NULL(st, expr, s->v.AsyncFunctionProto.args->kw_defaults);
-        if (!symtable_visit_annotations(st, s, s->v.AsyncFunctionProto.args,
+        if (!symtable_visit_annotations(st, s, LOCATION(s), s->v.AsyncFunctionProto.args,
                                         s->v.AsyncFunctionProto.returns))
             VISIT_QUIT(st, 0);
         if (s->v.AsyncFunctionProto.decorator_list)
@@ -1642,6 +1643,9 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
             VISIT_SEQ(st, expr, e->v.Lambda.args->defaults);
         if (e->v.Lambda.args->kw_defaults)
             VISIT_SEQ_WITH_NULL(st, expr, e->v.Lambda.args->kw_defaults);
+        if (!symtable_visit_annotations(st, e, LOCATION(e), e->v.Lambda.args,
+                                        e->v.Lambda.returns))
+            VISIT_QUIT(st, 0);
         if (!symtable_enter_block(st, lambda,
                                   FunctionBlock, (void *)e,
                                   e->lineno, e->col_offset,
@@ -1653,6 +1657,17 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
             VISIT_QUIT(st, 0);
         break;
     }
+    case LambdaProto_kind:
+        if (!GET_IDENTIFIER(lambda))
+            VISIT_QUIT(st, 0);
+        if (e->v.LambdaProto.args->defaults)
+            VISIT_SEQ(st, expr, e->v.LambdaProto.args->defaults);
+        if (e->v.LambdaProto.args->kw_defaults)
+            VISIT_SEQ_WITH_NULL(st, expr, e->v.LambdaProto.args->kw_defaults);
+        if (!symtable_visit_annotations(st, e, LOCATION(e), e->v.LambdaProto.args,
+                                        e->v.LambdaProto.returns))
+            VISIT_QUIT(st, 0);
+        break;
     case IfExp_kind:
         VISIT(st, expr, e->v.IfExp.test);
         VISIT(st, expr, e->v.IfExp.body);
@@ -1888,14 +1903,17 @@ symtable_visit_argannotations(struct symtable *st, asdl_arg_seq *args)
     return 1;
 }
 
+/* static int symtable_visit_annotations(struct symtable *st, void *o, int lineno,
+                                      int col_offset, int end_lineno, int end_col_offset,
+                                      arguments_ty a, expr_ty returns);*/
 static int
-symtable_visit_annotations(struct symtable *st, stmt_ty o, arguments_ty a, expr_ty returns)
+symtable_visit_annotations(struct symtable *st, void *o, int lineno, int col_offset,
+                           int end_lineno, int end_col_offset, arguments_ty a, expr_ty returns)
 {
     int future_annotations = st->st_future->ff_features & CO_FUTURE_ANNOTATIONS;
     if (future_annotations &&
         !symtable_enter_block(st, GET_IDENTIFIER(_annotation), AnnotationBlock,
-                              (void *)o, o->lineno, o->col_offset, o->end_lineno,
-                              o->end_col_offset)) {
+                              o, lineno, col_offset, end_lineno, end_col_offset)) {
         VISIT_QUIT(st, 0);
     }
     if (a->posonlyargs && !symtable_visit_argannotations(st, a->posonlyargs))

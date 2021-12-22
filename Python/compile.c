@@ -2747,12 +2747,10 @@ compiler_function_prototype(struct compiler *c, stmt_ty s, int is_async)
         protoflags |= 0x80;
     }
 
-
     qualname = compiler_concat_qualname(c, name);
     if (!qualname) {
         return 0;
     }
-
     ADDOP_LOAD_CONST(c, qualname);
     ADDOP_LOAD_CONST(c, name);
 
@@ -3106,12 +3104,24 @@ compiler_ifexp(struct compiler *c, expr_ty e)
 static int
 compiler_lambda(struct compiler *c, expr_ty e)
 {
+    /* funcflags
+        0x01: defaults
+        0x02: kwdefaults
+        0x04: annotations
+        0x08: closure
+    */
+
     PyCodeObject *co;
     PyObject *qualname;
     identifier name;
     Py_ssize_t funcflags;
-    arguments_ty args = e->v.Lambda.args;
+    Py_ssize_t annotations;
+    expr_ty returns;
+    arguments_ty args;
     assert(e->kind == Lambda_kind);
+
+    args = e->v.Lambda.args;
+    returns = e->v.Lambda.returns;
 
     if (!compiler_check_debug_args(c, args))
         return 0;
@@ -3125,6 +3135,14 @@ compiler_lambda(struct compiler *c, expr_ty e)
     funcflags = compiler_default_arguments(c, args);
     if (funcflags == -1) {
         return 0;
+    }
+
+    annotations = compiler_visit_annotations(c, args, returns);
+    if (annotations == 0) {
+        return 0;
+    }
+    else if (annotations > 0) {
+        funcflags |= 0x04;
     }
 
     if (!compiler_enter_scope(c, name, COMPILER_SCOPE_LAMBDA,
@@ -3163,6 +3181,72 @@ compiler_lambda(struct compiler *c, expr_ty e)
     Py_DECREF(qualname);
     Py_DECREF(co);
 
+    return 1;
+}
+
+static int
+compiler_lambda_prototype(struct compiler *c, expr_ty e)
+{
+    /* protoflags
+        0x01: defaults
+        0x02: kwdefaults
+        0x04: annotations
+        0x08: posonlyargnames
+        0x20: argnames
+        0x40: kwonlyargnames
+        0x80: async
+    */
+
+    PyObject *qualname;
+    identifier name;
+    Py_ssize_t protoflags;
+    Py_ssize_t annotations;
+    expr_ty returns;
+    arguments_ty args;
+    Py_ssize_t argnames;
+    assert(e->kind == LambdaProto_kind);
+
+    args = e->v.LambdaProto.args;
+    returns = e->v.LambdaProto.returns;
+
+    if (!compiler_check_debug_args(c, args))
+        return 0;
+
+    _Py_static_string(PyId_lambda, "<lambda>");
+    name = _PyUnicode_FromId(&PyId_lambda); /* borrowed ref */
+    if (name == NULL) {
+        return 0;
+    }
+
+    protoflags = compiler_default_arguments(c, args);
+    if (protoflags == -1) {
+        return 0;
+    }
+
+    annotations = compiler_visit_annotations(c, args, returns);
+    if (annotations == 0) {
+        return 0;
+    }
+    else if (annotations > 0) {
+        protoflags |= 0x04;
+    }
+
+    argnames = compiler_argnames(c, args);
+    if (argnames == -1) {
+        return 0;
+    }
+    else {
+        protoflags |= argnames;
+    }
+
+    qualname = compiler_concat_qualname(c, name);
+    if (!qualname) {
+        return 0;
+    }
+    ADDOP_LOAD_CONST(c, qualname);
+    ADDOP_LOAD_CONST(c, name);
+
+    ADDOP_I(c, MAKE_FUNCTION_PROTOTYPE, protoflags);
     return 1;
 }
 
@@ -4761,6 +4845,8 @@ infer_type(expr_ty e)
         return &PyGen_Type;
     case Lambda_kind:
         return &PyFunction_Type;
+    case LambdaProto_kind:
+        return &PyFunctionPrototype_Type;
     case JoinedStr_kind:
     case FormattedValue_kind:
         return &PyUnicode_Type;
@@ -4813,6 +4899,7 @@ check_subscripter(struct compiler *c, expr_ty e)
     case SetComp_kind:
     case GeneratorExp_kind:
     case Lambda_kind:
+    case LambdaProto_kind:
         return compiler_warn(c, "'%.200s' object is not subscriptable; "
                                 "perhaps you missed a comma?",
                                 infer_type(e)->tp_name);
@@ -5895,6 +5982,8 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
         break;
     case Lambda_kind:
         return compiler_lambda(c, e);
+    case LambdaProto_kind:
+        return compiler_lambda_prototype(c, e);
     case IfExp_kind:
         return compiler_ifexp(c, e);
     case Dict_kind:

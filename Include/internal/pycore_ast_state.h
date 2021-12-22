@@ -82,6 +82,7 @@ struct ast_state {
     PyObject *JoinedStr_type;
     PyObject *LShift_singleton;
     PyObject *LShift_type;
+    PyObject *LambdaProto_type;
     PyObject *Lambda_type;
     PyObject *ListComp_type;
     PyObject *List_type;
